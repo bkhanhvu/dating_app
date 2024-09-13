@@ -1,0 +1,31 @@
+# templates/matches_list.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Matches List</title>
+</head>
+<body>
+    <h1>Matches List</h1>
+    {% for profile in profiles %}
+        <h2>{{ profile.name }}</h2>
+        <button onclick="showMatches({{ profile.id }})">Show Matches</button>
+        <div id="matches-{{ profile.id }}" style="display: none;">
+            {% for match in profile.matches_as_profile1.all %}
+                <p>{{ match.profile2.name }} - Compatibility: {{ match.compatibility_score }}%</p>
+                <p>Reason: {{ match.reason }}</p>
+            {% endfor %}
+        </div>
+    {% endfor %}
+
+    <script>
+        function showMatches(profileId) {
+            var matchesDiv = document.getElementById('matches-' + profileId);
+            if (matchesDiv.style.display === 'none') {
+                matchesDiv.style.display = 'block';
+            } else {
+                matchesDiv.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

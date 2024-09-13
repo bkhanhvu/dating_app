@@ -1,0 +1,6 @@
+#!/Users/khanhvu/Documents/fullstack/fullstack_env/bin/python3
+
+from bpm.commands import bpm_parser
+
+args = bpm_parser.parse_args()
+args.fn(args)
