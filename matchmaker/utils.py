@@ -3,21 +3,20 @@ import random
 from django.conf import settings
 from django.db.models import Q
 from .models import Profile, Match
-
-# Predefined options for certain profile attributes
-PROFILE_OPTIONS = {
-    'gender': ['Male', 'Female', 'Other'],
-    'relationship_status': ['Single', 'Divorced', 'Widowed'],
-    'looking_for': ['Long-term', 'Short-term', 'Friendship', 'Casual'],
-}
+import json
 
 # Set up OpenAI API key and endpoint
-OPENAI_API_KEY = 'your_openai_api_key'
-OPENAI_URL = 'https://api.openai.com/v1/completions'
+OPENAI_API_KEY = settings.OPENAI_API_KEY
+OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
+
+# Predefined options for generating random profiles
+PROFILE_OPTIONS = {
+    'relationship_status': ['Single', 'In a relationship', 'Divorced', 'Widowed', 'Married'],
+    'looking_for': ['Friendship', 'Casual dating', 'Long-term relationship', 'Short-term relationship', 'Marriage'],}
 
 def call_openai_api(prompt, max_tokens=150):
     """
-    Call the OpenAI API using the requests library.
+    Call the OpenAI API using the requests library to generate a response using the gpt-4o-mini model.
     
     Args:
     prompt (str): The text prompt for the OpenAI API.
@@ -31,8 +30,11 @@ def call_openai_api(prompt, max_tokens=150):
         'Content-Type': 'application/json',
     }
     data = {
-        'model': 'text-davinci-002',
-        'prompt': prompt,
+        'model': 'gpt-4o-mini',  # Updated model to gpt-4o-mini
+        'messages': [
+            {'role': 'user', 'content': prompt}
+        ],
+        'temperature': 1,
         'max_tokens': max_tokens
     }
     
@@ -40,39 +42,44 @@ def call_openai_api(prompt, max_tokens=150):
         response = requests.post(OPENAI_URL, headers=headers, json=data)
         response.raise_for_status()
         result = response.json()
-        return result['choices'][0]['text'].strip()
+        return result['choices'][0]['message']['content'].strip()
     except requests.exceptions.RequestException as e:
         print(f"Error calling OpenAI API: {e}")
         return None
 
-def generate_random_profile():
+def generate_random_profile(gender):
     """
-    Generate a random dating profile using OpenAI's GPT-3 via API call.
+    Generate a random dating profile using OpenAI's GPT-4 via API call.
     
     Returns:
     dict: A dictionary containing profile attributes, or None if an error occurs.
     """
-    prompt = """Generate a random dating profile with the following attributes:
-    1. Full name
+    prompt = f"""Generate a random dating profile with the following attributes: randomize and be creative with different races. 
+    We already have these names: {set(Profile.objects.values_list('name', flat=True))} DO NOT REPEAT
+    1. Full name based on gender of {gender}
     2. Age (between 18 and 65)
     3. Occupation
     4. 3-5 interests or hobbies (comma-separated)
     5. Timeline to settle down (in months, between 0 and 60)
 
     Format the response as a Python dictionary with keys: name, age, occupation, interests, settle_timeline."""
-
     profile_text = call_openai_api(prompt, max_tokens=150)
     if not profile_text:
         return None
 
     try:
-        profile_dict = eval(profile_text)
+        # find everything between the curly braces
+        profile_text = profile_text[profile_text.find("{"):profile_text.rfind("}")+1]
+        print(profile_text)
+        # Parse the generated profile text as a Python dictionary
+        profile_dict = json.loads(profile_text)
+        print(profile_dict)
     except Exception as e:
         print(f"Error parsing generated profile: {e}")
         return None
 
     # Add randomly selected options for predefined fields
-    profile_dict['gender'] = random.choice(PROFILE_OPTIONS['gender'])
+    profile_dict['gender'] = gender
     profile_dict['relationship_status'] = random.choice(PROFILE_OPTIONS['relationship_status'])
     profile_dict['looking_for'] = random.choice(PROFILE_OPTIONS['looking_for'])
 
@@ -85,28 +92,90 @@ def generate_random_profile():
 
     return profile_dict
 
-def calculate_compatibility(profile1: Profile, profile2: Profile):
+
+def get_ai_compatibility_and_final_analysis(profile1: Profile, profile2: Profile, manual_score):
     """
-    Calculate the compatibility score between two profiles.
+    Make a single API call to get both AI-generated compatibility scores and a final analysis explanation.
+    
+    Args:
+    profile1 (Profile): The first profile to compare.
+    profile2 (Profile): The second profile to compare.
+    manual_score (int): The manually calculated score for age, timeline, and looking_for.
+    
+    Returns:
+    dict: A dictionary containing AI-generated scores, total score, and a final explanation.
+    """
+    prompt = f"""Follow the instruction but only produce the final JSON output.
+    Calculate the AI-based scores matching both profiles (50 points) based on the following rubric and provide a final compatibility explanation:
+    - Occupation (out of 15)
+    - Interests (out of 15)
+    - Names (out of 5)
+    - Personality (out of 15)
+    The remaining score (already calculated: {manual_score}/50) is based on their relationship goals, timeline to settle down, and age difference.
+
+    Profile 1: {profile1.name}, {profile1.age}, {profile1.occupation}, interested in {profile1.interests}, 
+    looking for {profile1.get_looking_for_display()}, timeline to settle: {profile1.settle_timeline} months.
+
+    Profile 2: {profile2.name}, {profile2.age}, {profile2.occupation}, interested in {profile2.interests}, 
+    looking for {profile2.get_looking_for_display()}, timeline to settle: {profile2.settle_timeline} months.
+
+    Provide the following output for compatibility score as a formated JSON:
+        'Occupation (out of 15)': ,
+        'Interests (out of 15)': ,
+        'Names (out of 5)': ,
+        'Personality (out of 15)': ,
+        'Compatibility Explanation: 
+    """
+
+    response = call_openai_api(prompt, max_tokens=400)
+
+    if not response:
+        return None
+
+    try:      
+        # remove initial json
+        response = response[response.find("{"):response.rfind("}")+1]
+        response_dict = json.loads(response)
+        
+        # Extract fields from the response_dict
+        scores = {
+            'occupation': response_dict.get('Occupation (out of 15)', 0),
+            'interests': response_dict.get('Interests (out of 15)', 0),
+            'names': response_dict.get('Names (out of 5)', 0),
+            'personality': response_dict.get('Personality (out of 15)', 0),
+            'manual_score': manual_score,
+            'final_explanation': response_dict.get('Compatibility Explanation', '')
+        }
+        
+        scores['total_score'] = scores['manual_score'] + scores['occupation'] + scores['interests'] + scores['names'] + scores['personality']
+        
+        return scores
+
+    except Exception as e:
+        print(f"Error parsing AI response: {e}")
+        return None
+
+
+def calculate_manual_score(profile1: Profile, profile2: Profile):
+    """
+    Manually calculate the compatibility score based on age difference, timeline difference, and relationship goals.
     
     Args:
     profile1 (Profile): The first profile to compare.
     profile2 (Profile): The second profile to compare.
     
     Returns:
-    int: A compatibility score between 0 and 100.
+    int: The manually calculated score out of 50.
     """
     score = 0
-    
-    # Basic Criteria (50 points total)
-    
+
     # Looking For (15 points)
     if profile1.looking_for == profile2.looking_for:
         score += 15
-    elif (profile1.looking_for in ['LT', 'ST'] and profile2.looking_for in ['LT', 'ST']) or \
-         (profile1.looking_for in ['F', 'C'] and profile2.looking_for in ['F', 'C']):
+    elif (profile1.looking_for in ['LO', 'SH'] and profile2.looking_for in ['LO', 'SH']) or \
+        (profile1.looking_for in ['FR', 'CA'] and profile2.looking_for in ['FR', 'CA']):
         score += 7  # Partial match
-
+        
     # Settle Timeline (10 points)
     timeline_diff = abs(profile1.settle_timeline - profile2.settle_timeline)
     if timeline_diff == 0:
@@ -133,83 +202,35 @@ def calculate_compatibility(profile1: Profile, profile2: Profile):
     if profile1.relationship_status == profile2.relationship_status:
         score += 5
 
-    # AI-based Criteria (50 points total)
-    ai_score = get_ai_compatibility_score(profile1, profile2)
-    score += ai_score
+    return score  # Out of 50
 
-    return min(score, 100)  # Ensure the score doesn't exceed 100
 
-def get_ai_compatibility_score(profile1: Profile, profile2: Profile):
+def calculate_compatibility(profile1: Profile, profile2: Profile):
     """
-    Get an AI-generated compatibility score for two profiles via API call.
+    Calculate the total compatibility score between two profiles, including both manual and AI-generated scores.
     
     Args:
     profile1 (Profile): The first profile to compare.
     profile2 (Profile): The second profile to compare.
     
     Returns:
-    int: An AI-generated compatibility score between 0 and 50.
+    dict: Contains the final total score and explanation.
     """
-    prompt = f"""Analyze the compatibility of these two dating profiles and provide scores for different aspects. 
-    The total score should add up to 50 points.
+    # Manually calculate the score (out of 50)
+    manual_score = calculate_manual_score(profile1, profile2)
 
-    Profile 1: {profile1.name}, {profile1.age}, {profile1.occupation}, interested in {profile1.interests}, 
-    looking for {profile1.get_looking_for_display()}, timeline to settle: {profile1.settle_timeline} months
-
-    Profile 2: {profile2.name}, {profile2.age}, {profile2.occupation}, interested in {profile2.interests}, 
-    looking for {profile2.get_looking_for_display()}, timeline to settle: {profile2.settle_timeline} months
-
-    Provide your response in the following format:
-    Occupation: [score]
-    Interests: [score]
-    Names: [score]
-    Personality: [score]
-    Total: [sum of all scores]
-    Explanation: [Brief explanation of your scoring]
-    """
+    # Get AI-generated scores and the final explanation
+    ai_data = get_ai_compatibility_and_final_analysis(profile1, profile2, manual_score)
     
-    analysis = call_openai_api(prompt, max_tokens=200)
-    if not analysis:
-        return 0
-    
-    try:
-        lines = analysis.split('\n')
-        for line in lines:
-            if line.startswith('Total:'):
-                return int(line.split(':')[1].strip())
-    except Exception as e:
-        print(f"Error parsing AI compatibility score: {e}")
-    
-    return 0
+    if ai_data:
+        final_score = ai_data['total_score']
+        final_explanation = ai_data['final_explanation']
+        return {
+            'total_score': final_score,
+            'explanation': final_explanation
+        }
+    return None
 
-def generate_match_reason(profile1: Profile, profile2: Profile, compatibility_score):
-    """
-    Generate a personalized reason for why two profiles were matched via OpenAI API call.
-    
-    Args:
-    profile1 (Profile): The first profile in the match.
-    profile2 (Profile): The second profile in the match.
-    compatibility_score (int): The calculated compatibility score.
-    
-    Returns:
-    str: A brief explanation of why the profiles were matched.
-    """
-    prompt = f"""Generate a brief, friendly explanation for why {profile1.name} and {profile2.name} were matched.
-    Their compatibility score is {compatibility_score}/100.
-    
-    Profile 1: {profile1.name}, {profile1.age}, {profile1.occupation}, interested in {profile1.interests}, 
-    looking for {profile1.get_looking_for_display()}, timeline to settle: {profile1.settle_timeline} months
-
-    Profile 2: {profile2.name}, {profile2.age}, {profile2.occupation}, interested in {profile2.interests}, 
-    looking for {profile2.get_looking_for_display()}, timeline to settle: {profile2.settle_timeline} months
-
-    Highlight key points of compatibility in a positive, encouraging tone. Keep it under 100 words.
-    """
-
-    reason = call_openai_api(prompt, max_tokens=100)
-    if reason:
-        return reason
-    return "These profiles seem compatible based on their interests and preferences."
 
 def generate_matches():
     """
@@ -232,21 +253,25 @@ def generate_matches():
 
             # Check if the pair is compatible based on their preferences
             if is_compatible_pair(profile1, profile2):
-                compatibility_score = calculate_compatibility(profile1, profile2)
-                if compatibility_score >= settings.MATCH_THRESHOLD:
-                    reason = generate_match_reason(profile1, profile2, compatibility_score)
-                    new_matches.append(
-                        Match(
-                            profile1=profile1,
-                            profile2=profile2,
-                            compatibility_score=compatibility_score,
-                            reason=reason
+                compatibility_result = calculate_compatibility(profile1, profile2)
+                if compatibility_result:
+                    total_score = compatibility_result['total_score']
+                    reason = compatibility_result['explanation']
+
+                    if total_score >= settings.MATCH_THRESHOLD:
+                        new_matches.append(
+                            Match(
+                                profile1=profile1,
+                                profile2=profile2,
+                                compatibility_score=total_score,
+                                reason=reason
+                            )
                         )
-                    )
 
     # Bulk create all new matches
     Match.objects.bulk_create(new_matches)
     return len(new_matches)
+
 
 def is_compatible_pair(profile1: Profile, profile2: Profile):
     """

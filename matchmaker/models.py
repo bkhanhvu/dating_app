@@ -5,8 +5,7 @@ class Profile(models.Model):
     # Choices for gender field
     GENDER_CHOICES = [
         ('M', 'Male'),
-        ('F', 'Female'),
-        ('O', 'Other'),
+        ('F', 'Female')
     ]
 
     # Choices for relationship status
@@ -18,10 +17,10 @@ class Profile(models.Model):
 
     # Choices for what the user is looking for
     LOOKING_FOR_CHOICES = [
-        ('LT', 'Long-term'),
-        ('ST', 'Short-term'),
-        ('F', 'Friendship'),
-        ('C', 'Casual'),
+        ('LO', 'Long-term'),
+        ('SH', 'Short-term'),
+        ('FR', 'Friendship'),
+        ('CA', 'Casual'),
     ]
 
     # Basic personal information

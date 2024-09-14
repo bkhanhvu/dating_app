@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matches List</title>
+    <style>
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background-color: #f7f0f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+        h1 {
+            color: #ff69b4;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+        /* Search Form Styling */
+        form {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        input[type="text"] {
+            padding: 10px;
+            border: 2px solid #ff69b4;
+            border-radius: 10px;
+            width: 70%;
+            font-size: 1rem;
+            margin-right: 10px;
+        }
+        button {
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #ff1493;
+        }
+        /* Profile Card Styling */
+        .profile-card {
+            background-color: #ffe6f3;
+            margin-bottom: 15px;
+            padding: 15px;
+            border: 2px solid #ff69b4;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .profile-card h2 {
+            color: #ff1493;
+            margin: 0 0 10px;
+            font-size: 1.5rem;
+        }
+        .profile-card button {
+            background-color: #ff69b4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .profile-card button:hover {
+            background-color: #ff1493;
+        }
+        .matches-list {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fff0f6;
+            border-radius: 10px;
+            display: none; /* Hidden by default */
+        }
+        .matches-list p {
+            margin: 5px 0;
+            color: #333;
+            font-size: 0.95rem;
+        }
+        .no-matches {
+            color: #999;
+            font-style: italic;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💖 Your Matches 💖</h1>
+
+        <!-- Search form with cute styling -->
+        <form method="get">
+            <input type="text" name="search" placeholder="Search profiles by name, gender, or occupation...">
+            <button type="submit">🔍 Search</button>
+        </form>
+
+        <!-- Profiles and Matches -->
+        {% if profiles %}
+            {% for profile in profiles %}
+                <div class="profile-card">
+                    <h2>{{ profile.name }}</h2>
+                    <button onclick="toggleMatches({{ profile.id }})">💌 Show Matches 💌</button>
+                    
+                    <div id="matches-{{ profile.id }}" class="matches-list">
+                        {% if profile.matches_as_profile1.all %}
+                            {% for match in profile.matches_as_profile1.all %}
+                                <p><strong>{{ match.profile2.name }}</strong> - Compatibility: {{ match.compatibility_score }}%</p>
+                                <p><em>Reason:</em> {{ match.reason }}</p>
+                            {% endfor %}
+                        {% else %}
+                            <p class="no-matches">No matches available 💔</p>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No profiles found matching your search 💔</p>
+        {% endif %}
+    </div>
+
+    <script>
+        function toggleMatches(profileId) {
+            var matchesDiv = document.getElementById('matches-' + profileId);
+            if (matchesDiv.style.display === 'none' || matchesDiv.style.display === '') {
+                matchesDiv.style.display = 'block';
+            } else {
+                matchesDiv.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

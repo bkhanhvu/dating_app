@@ -20,6 +20,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+OPENAI_API_KEY = # Your OpenAI API key here
+
 SECRET_KEY = 'django-insecure-m(ch=2cp&+ei77!7vj1+g@xc30qzs9!nlfq8=p=&=&ghxzw4ml'
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -57,7 +59,7 @@ ROOT_URLCONF = 'dating_app.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [ '/Users/khanhvu/Documents/fullstack/dating_app/templates' ],
+        'DIRS': [ '/Users/khanhvu/Documents/fullstack/dating_app/matchmaker/templates' ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

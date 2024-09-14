@@ -105,13 +105,13 @@ class ProfileViewTest(TestCase):
         # Test the profile creation view
         response = self.client.get(reverse('profile_create'))
         self.assertEqual(response.status_code, 200)  # Check if the page loads
-        self.assertTemplateUsed(response, 'profile_form.html')  # Check if the correct template is used
+        self.assertTemplateUsed(response, '/Users/khanhvu/Documents/fullstack/dating_app/matchmaker/templates/profile_form.html')  # Check if the correct template is used
     
     def test_matches_list_view(self):
         # Test the matches list view
         response = self.client.get(reverse('matches_list'))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'matches_list.html')
+        self.assertTemplateUsed(response, '/Users/khanhvu/Documents/fullstack/dating_app/matchmaker/templates/matches_list.html')
         self.assertContains(response, "John Doe")  # Check if the response contains profile data
 
 class MatchViewTest(TestCase):
@@ -140,6 +140,8 @@ class MatchViewTest(TestCase):
     def test_generate_matches(self):
         # Create match using the view and verify match creation
         response = self.client.get(reverse('matches_list'))
+        # print response.content  # Uncomment to print response content for debugging
+        print(response.content)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "John Doe")
         self.assertContains(response, "Jane Smith")
